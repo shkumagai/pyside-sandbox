@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import datetime
 import sys
+import time
 
 from argparse import ArgumentParser
-from PySide.QtCore import QUrl, QTimer
+from PySide.QtCore import QUrl, QTimer, Qt
 from PySide.QtGui import QApplication, QImage, QPainter
 from PySide.QtNetwork import QNetworkRequest
 from PySide.QtWebKit import QWebView, QWebPage
@@ -32,21 +33,27 @@ class Browser(QWebView):
         if page:
             self.setPage(page)
 
+        self.use_smooth_scroll = args.with_smooth_scroll
+
         self.timerScreen = QTimer()
         self.timerScreen.setInterval(1000)
         self.timerScreen.setSingleShot(True)
-        self.timerScreen.timeout.connect(self._load_finished)
+        self.timerScreen.timeout.connect(self.take_screenshot)
 
-        self.loadFinished.connect(self.timerScreen.start)
+        self.timerDelay = QTimer()
+        self.timerDelay.setInterval(20)
+        self.timerDelay.setSingleShot(True)
+        self.timerDelay.timeout.connect(self.delay_action)
 
-    def _load_finished(self):
+        self.loadFinished.connect(self.delay_action)
+
+    def take_screenshot(self):
         """Callback function when content loading finished
         """
         frame = self.page().mainFrame()
         size = frame.contentsSize()
         self.page().setViewportSize(size)
-        self.scroll(0, size.height())
-        frame.scroll(0, size.height())
+
         image = QImage(size, QImage.Format_ARGB32)
         painter = QPainter(image)
 
@@ -55,9 +62,21 @@ class Browser(QWebView):
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         file_name = "{}_{}.png".format(args.prefix, timestamp)
-        image.save(file_name)
         print("page title: [{}] --> save as {}".format(self.title(), file_name))
+        image.save(file_name)
         sys.exit()
+
+    def delay_action(self):
+        frame = self.page().mainFrame()
+        target_y = frame.scrollBarMaximum(Qt.Vertical)
+        current_y = frame.scrollBarValue(Qt.Vertical)
+
+        if self.use_smooth_scroll and target_y > current_y:
+            y = current_y + 50
+            frame.evaluateJavaScript("window.scrollTo(0, {});".format(y))
+            self.timerDelay.start()
+        else:
+            self.timerScreen.start()
 
     def run(self, args):
         """prepare request object, then call 'load' method of QWebView object
@@ -99,6 +118,8 @@ if __name__ == "__main__":
                     help="specify minimum window height to capture screen")
     ap.add_argument('-p', '--prefix', default='screenshot',
                     help="specify PNG file prefix (timestamp follows)")
+    ap.add_argument('-s', '--with-smooth-scroll', default=False, action="store_true",
+                    help="use Smooth scroll when capture")
     args = ap.parse_args()
 
     main(args)
