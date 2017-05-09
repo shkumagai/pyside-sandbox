@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import datetime
 import sys
-import time
 
 from argparse import ArgumentParser
 from PySide.QtCore import QUrl, QTimer, Qt
@@ -103,8 +102,6 @@ def main(args):
 
 
 if __name__ == "__main__":
-    """
-    """
     ap = ArgumentParser()
     ap.add_argument('-a', '--agent', default=None,
                     help="UA strings for HTTP Header 'User-Agent'")
