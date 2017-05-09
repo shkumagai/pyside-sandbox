@@ -1,4 +1,34 @@
 # -*- coding: utf-8 -*-
+"""Web screen capture script with QtWebKit
+
+How to use
+==========
+
+  $ python screenshot.py -h
+  usage: screenshot.py [-h] [-a AGENT] [-l LANGUAGE] [-w WIDTH] [-H HEIGHT]
+                       [-p PREFIX] [-s]
+                       url
+
+  positional arguments:
+    url                   specify request url
+
+  optional arguments:
+    -h, --help            show this help message and exit
+    -a AGENT, --agent AGENT
+                          UA strings for HTTP Header 'User-Agent'
+    -l LANGUAGE, --language LANGUAGE
+                          specify langs for HTTP Header 'Accept-Language'
+    -w WIDTH, --width WIDTH
+                          specify window width to capture screen
+    -H HEIGHT, --height HEIGHT
+                          specify minimum window height to capture screen
+    -p PREFIX, --prefix PREFIX
+                          specify PNG file prefix (timestamp follows)
+    -s, --with-smooth-scroll
+                          whether scroll down to bottom when capture the page or
+                          not
+
+"""
 import datetime
 import sys
 
@@ -80,7 +110,6 @@ class Browser(QWebView):
     def run(self, args):
         """prepare request object, then call 'load' method of QWebView object
         """
-        print(args)
         request = QNetworkRequest()
         request.setUrl(QUrl(args.url))
         request.setRawHeader("Accept-Languages", ', '.join(args.language))
@@ -93,6 +122,7 @@ class Browser(QWebView):
 def main(args):
     """main function
     """
+    print(args)
     app = QApplication(sys.argv)
     page = Page(args.agent) if args.agent else None
     browser = Browser(page)
@@ -105,10 +135,8 @@ if __name__ == "__main__":
     ap = ArgumentParser()
     ap.add_argument('-a', '--agent', default=None,
                     help="UA strings for HTTP Header 'User-Agent'")
-    ap.add_argument('-l', '--language', default=['ja', 'en'],
-                    help="")
-    ap.add_argument('-u', '--url', default='http://shkumagai.github.io/blog/pages/about.html',
-                    help="default request url (dummy)")
+    ap.add_argument('-l', '--language', action="append",
+                    help="specify langs for HTTP Header 'Accept-Language'")
     ap.add_argument('-w', '--width', default=1024,
                     help="specify window width to capture screen")
     ap.add_argument('-H', '--height', default=768,
@@ -116,7 +144,10 @@ if __name__ == "__main__":
     ap.add_argument('-p', '--prefix', default='screenshot',
                     help="specify PNG file prefix (timestamp follows)")
     ap.add_argument('-s', '--with-smooth-scroll', default=False, action="store_true",
-                    help="use Smooth scroll when capture")
+                    help="whether scroll down to bottom when capture the page or not")
+    ap.add_argument('url', help="specify request url")
     args = ap.parse_args()
 
+    if not args.language:
+        args.language = ['ja']
     main(args)
