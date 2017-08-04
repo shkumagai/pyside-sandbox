@@ -95,7 +95,7 @@ class Browser(QWebView):
 
     def initialize(self):
         self.timerDelay = QTimer()
-        self.timerDelay.setInterval(20)
+        self.timerDelay.setInterval(50)
         self.timerDelay.setSingleShot(True)
         self.timerDelay.timeout.connect(self.delay_action)
 
@@ -108,9 +108,13 @@ class Browser(QWebView):
         """Callback function when content loading finished
         """
         if not ok:
-            print("Loaded but not completed: %s".format(self.url))
+            print("Loaded but not completed: {}".format(self.url))
             return
-        print("Load completed: %s".format(self.url))
+        print("Load completed: {}".format(self.url))
+        print("Loaded content size: {:,d} x {:,d}".format(
+            self.page().mainFrame().contentsSize().width(),
+            self.page().mainFrame().contentsSize().height(),
+        ))
         self.delay_action()
 
     def delay_action(self):
@@ -120,7 +124,8 @@ class Browser(QWebView):
 
         if self.use_smooth_scroll and target_y > current_y:
             y = current_y + 50
-            frame.evaluateJavaScript("window.scrollTo(0, {});".format(y))
+            frame.evaluateJavaScript("window.scrollTo(0, {:d});".format(y))
+            print("Scroll to y: {:,d}".format(y))
             self.timerDelay.start()
         else:
             self.take_screenshot()
@@ -138,7 +143,7 @@ class Browser(QWebView):
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         file_name = "{}_{}.png".format(args.prefix, timestamp)
-        print("page title: [{}] --> save as {}".format(self.title(), file_name))
+        print("page title: [{:s}] --> save as {:s}".format(self.title(), file_name))
         image.save(file_name)
         sys.exit()
 
@@ -150,7 +155,7 @@ class Browser(QWebView):
         request.setRawHeader(bytes("Accept-Languages", 'utf-8'), bytes(', '.join(args.language), 'utf-8'))
         request.setRawHeader(bytes("User-Agent", 'utf-8'), bytes(args.agent, 'utf-8'))
 
-        self.resize(int(args.width), int(args.height))
+        self.resize(int(args.width) + 15, int(args.height))
         self.load(request)
 
 
