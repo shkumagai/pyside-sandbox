@@ -39,13 +39,14 @@ try:
     from PySide.QtCore import QUrl, QTimer, Qt
     from PySide.QtGui import QApplication, QImage, QPainter
     from PySide.QtNetwork import QNetworkRequest
-    from PySide.QtWebKit import QWebView, QWebPage
+    from PySide.QtWebKit import QWebView, QWebPage, QWebSettings
 
 except ImportError:
     # Use PyQt5 when it couldn't have found PySide modules
     from PyQt5.QtCore import QUrl, QTimer, Qt
     from PyQt5.QtGui import QImage, QPainter
     from PyQt5.QtNetwork import QNetworkRequest
+    from PyQt5.QtWebKit import QWebSettings
     from PyQt5.QtWebKitWidgets import QWebView, QWebPage
     from PyQt5.QtWidgets import QApplication
 
@@ -84,6 +85,14 @@ class Browser(QWebView):
         self.use_smooth_scroll = args.with_smooth_scroll
         self.initialize()
 
+    def _private_browse(self):
+        print("Enable private browsing mode")
+        self.settings().setAttribute(QWebSettings.PrivateBrowsingEnabled, True)
+
+    def _hide_scroll_bars(self):
+        print("Disable scroll bars")
+        self.page().mainFrame().setScrollBarPolicy(Qt.Horizontal, Qt.ScrollBarAlwaysOff)
+
     def initialize(self):
         self.timerDelay = QTimer()
         self.timerDelay.setInterval(20)
@@ -91,6 +100,9 @@ class Browser(QWebView):
         self.timerDelay.timeout.connect(self.delay_action)
 
         self.loadFinished.connect(self.load_finished_slot)
+
+        self._private_browse()
+        self._hide_scroll_bars()
 
     def load_finished_slot(self, ok):
         """Callback function when content loading finished
