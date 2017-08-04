@@ -33,10 +33,29 @@ import datetime
 import sys
 
 from argparse import ArgumentParser
-from PySide.QtCore import QUrl, QTimer, Qt
-from PySide.QtGui import QApplication, QImage, QPainter
-from PySide.QtNetwork import QNetworkRequest
-from PySide.QtWebKit import QWebView, QWebPage
+
+
+try:
+    from PySide.QtCore import QUrl, QTimer, Qt
+    from PySide.QtGui import QApplication, QImage, QPainter
+    from PySide.QtNetwork import QNetworkRequest
+    from PySide.QtWebKit import QWebView, QWebPage
+
+except ImportError:
+    # Use PyQt5 when it couldn't have found PySide modules
+    from PyQt5.QtCore import QUrl, QTimer, Qt
+    from PyQt5.QtGui import QImage, QPainter
+    from PyQt5.QtNetwork import QNetworkRequest
+    from PyQt5.QtWebKitWidgets import QWebView, QWebPage
+    from PyQt5.QtWidgets import QApplication
+
+
+DEFAULT_WIDTH = 1024
+DEFAULT_HEIGHT = 768
+DEFAULT_USERAGENT = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5)'
+                     ' AppleWebKit/537.36 (KHTML, like Gecko)'
+                     ' CDP/47.0.2526.73 Safari/537.36')
+DEFAULT_PREFIX = 'screenshot'
 
 
 class Page(QWebPage):
@@ -47,7 +66,7 @@ class Page(QWebPage):
         self.ua = ua
 
     def userAgentForUrl(self, url):
-        """override 'userAgentforurl' method
+        """override 'userAgentForUrl' method
         """
         return self.ua
 
@@ -63,22 +82,38 @@ class Browser(QWebView):
             self.setPage(page)
 
         self.use_smooth_scroll = args.with_smooth_scroll
+        self.initialize()
 
-        self.timerScreen = QTimer()
-        self.timerScreen.setInterval(1000)
-        self.timerScreen.setSingleShot(True)
-        self.timerScreen.timeout.connect(self.take_screenshot)
-
+    def initialize(self):
         self.timerDelay = QTimer()
         self.timerDelay.setInterval(20)
         self.timerDelay.setSingleShot(True)
         self.timerDelay.timeout.connect(self.delay_action)
 
-        self.loadFinished.connect(self.delay_action)
+        self.loadFinished.connect(self.load_finished_slot)
 
-    def take_screenshot(self):
+    def load_finished_slot(self, ok):
         """Callback function when content loading finished
         """
+        if not ok:
+            print("Loaded but not completed: %s".format(self.url))
+            return
+        print("Load completed: %s".format(self.url))
+        self.delay_action()
+
+    def delay_action(self):
+        frame = self.page().mainFrame()
+        target_y = frame.scrollBarMaximum(Qt.Vertical)
+        current_y = frame.scrollBarValue(Qt.Vertical)
+
+        if self.use_smooth_scroll and target_y > current_y:
+            y = current_y + 50
+            frame.evaluateJavaScript("window.scrollTo(0, {});".format(y))
+            self.timerDelay.start()
+        else:
+            self.take_screenshot()
+
+    def take_screenshot(self):
         frame = self.page().mainFrame()
         size = frame.contentsSize()
         self.page().setViewportSize(size)
@@ -95,25 +130,13 @@ class Browser(QWebView):
         image.save(file_name)
         sys.exit()
 
-    def delay_action(self):
-        frame = self.page().mainFrame()
-        target_y = frame.scrollBarMaximum(Qt.Vertical)
-        current_y = frame.scrollBarValue(Qt.Vertical)
-
-        if self.use_smooth_scroll and target_y > current_y:
-            y = current_y + 50
-            frame.evaluateJavaScript("window.scrollTo(0, {});".format(y))
-            self.timerDelay.start()
-        else:
-            self.timerScreen.start()
-
     def run(self, args):
         """prepare request object, then call 'load' method of QWebView object
         """
         request = QNetworkRequest()
         request.setUrl(QUrl(args.url))
-        request.setRawHeader("Accept-Languages", ', '.join(args.language))
-        request.setRawHeader("User-Agent", args.agent)
+        request.setRawHeader(bytes("Accept-Languages", 'utf-8'), bytes(', '.join(args.language), 'utf-8'))
+        request.setRawHeader(bytes("User-Agent", 'utf-8'), bytes(args.agent, 'utf-8'))
 
         self.resize(int(args.width), int(args.height))
         self.load(request)
@@ -133,15 +156,15 @@ def main(args):
 
 if __name__ == "__main__":
     ap = ArgumentParser()
-    ap.add_argument('-a', '--agent', default=None,
+    ap.add_argument('-a', '--agent', default=DEFAULT_USERAGENT,
                     help="UA strings for HTTP Header 'User-Agent'")
     ap.add_argument('-l', '--language', action="append",
                     help="specify langs for HTTP Header 'Accept-Language'")
-    ap.add_argument('-w', '--width', default=1024,
+    ap.add_argument('-w', '--width', default=DEFAULT_WIDTH,
                     help="specify window width to capture screen")
-    ap.add_argument('-H', '--height', default=768,
+    ap.add_argument('-H', '--height', default=DEFAULT_HEIGHT,
                     help="specify minimum window height to capture screen")
-    ap.add_argument('-p', '--prefix', default='screenshot',
+    ap.add_argument('-p', '--prefix', default=DEFAULT_PREFIX,
                     help="specify PNG file prefix (timestamp follows)")
     ap.add_argument('-s', '--with-smooth-scroll', default=False, action="store_true",
                     help="whether scroll down to bottom when capture the page or not")
