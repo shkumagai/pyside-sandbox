@@ -14,8 +14,8 @@ from PyQt5.QtNetwork import (
     QNetworkCookie,
     QNetworkCookieJar,
 )
-from PyQt5.QtWebKitWidgets import QWebPage
 from PyQt5.QtWebKit import QWebSettings
+from PyQt5.QtWebKitWidgets import QWebPage
 from PyQt5.QtWidgets import QApplication
 
 logger = logging.getLogger(__name__)
@@ -24,9 +24,11 @@ FONT_FAMILY_NAME = 'Noto Sans CJK JP'
 DEFAULT_USERAGENT = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5)'
                      ' AppleWebKit/537.36 (KHTML, like Gecko)'
                      ' CDP/47.0.2526.73 Safari/537.36')
+DEFAULT_PREFIX = 'screenshot'
 
 
 def generate_cookie(url, cookies):
+    """Generate cookie via cookiejar."""
     logger.info("Generate Cookies: {0} {1}".format(url, cookies))
     if not cookies:
         return QNetworkCookieJar()
@@ -103,6 +105,8 @@ class WebKitShooter(QWebPage):
         accept_languages='en,ja',
         cookies=None,
         referer=None,
+        scroll=False,
+        prefix=DEFAULT_PREFIX,
     ):
         """Initialize."""
         super(QWebPage, self).__init__()
@@ -116,11 +120,13 @@ class WebKitShooter(QWebPage):
         self.accept_languages = accept_languages
         self.cookies = cookies
         self.referer = referer
+        self.prefix = prefix
 
         # flags
         self.loadCompleted = False
         self.initialLayoutFinished = False
         self.finished = False
+        self.scroll = scroll
 
         self._initialize()
 
@@ -136,6 +142,12 @@ class WebKitShooter(QWebPage):
         self.mainFrame().initialLayoutCompleted.connect(
             self.initial_layout_slot,
         )
+
+        if self.scroll:
+            self.timerScroll = QTimer()
+            self.timerScroll.setInterval(50)
+            self.timerScroll.setSingleShot(True)
+            self.timerScroll.timeout.connect(self.post_loaded)
 
         self._set_fontfamily()
         self._set_props_to_network_access_manager()
@@ -168,7 +180,7 @@ class WebKitShooter(QWebPage):
                     self.mainFrame().contentsSize().height(),
                 ),
             )
-            self.render_and_capture(self)
+            self.post_loaded()
 
     def initial_layout_slot(self):
         """Dispatch capture task when initial layout setting finished."""
@@ -183,6 +195,21 @@ class WebKitShooter(QWebPage):
                     self.mainFrame().contentsSize().height,
                 ),
             )
+            self.post_loaded()
+
+    def post_loaded(self):
+        """Do delaying action after content loaded."""
+        target_y = self.mainFrame().scrollBarMaximum(Qt.Vertical)
+        current_y = self.mainFrame().scrollBarValue(Qt.Vertical)
+
+        if self.scroll and target_y > current_y:
+            y = current_y + 50
+            self.mainFrame().evaluateJavaScript(
+                'window.scrollTo(0, {0:d})'.format(y),
+            )
+            logger.info("Scroll to Y:{0:,d}".format(y))
+            self.timerScroll.start()
+        else:
             self.render_and_capture()
 
     def _ssl_errors_slot(self, reply, errors):
@@ -253,8 +280,8 @@ class WebKitShooter(QWebPage):
 
         painter = QPainter(image)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        painter.setRedderHint(QPainter.Angialiasing)
-        painter.setRenderHint(QPainter.TextAngialiasing)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.TextAntialiasing)
         painter.setRenderHint(QPainter.HighQualityAntialiasing)
 
         self.mainFrame().render(painter)
@@ -264,7 +291,7 @@ class WebKitShooter(QWebPage):
         file_name = "{0}_{1}.png".format(self.prefix, timestamp)
         logger.info(
             "Page title: [{0:s}] --> save as {1:s}".format(
-                self.title(),
+                self.mainFrame().title(),
                 file_name,
             ),
         )
@@ -272,17 +299,12 @@ class WebKitShooter(QWebPage):
         self.finished = True
 
 
-def shoot(
-        url, width, height, user_agent, accept_languages,
-        cookies=None, referer=None, ):
+def shoot(url, width, height, prefix=None, scroll=False):
     """Take screenshot."""
     qapp = QApplication(sys.argv)
 
-    shooter = WebKitShooter(url,
-                            width=1366,
-                            height=600,
-                            user_agent=DEFUALT_USERAGENT,
-                            accept_languages='en,ja',
+    shooter = WebKitShooter(
+        url, width=1366, height=600, prefix=prefix, scroll=scroll,
     )
     shooter.run()
 
@@ -290,3 +312,41 @@ def shoot(
         qapp.processEvents()
         time.sleep(0.01)
     shooter = None
+
+
+def main(args):
+    logging.basicConfig(level=logging.INFO)
+    logger.info("Args: {0}".format(args))
+    shoot(
+        args.url, args.width, args.height,
+        prefix=args.prefix, scroll=args.scroll,
+    )
+
+
+if __name__ == '__main__':
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument(
+        '-a', '--user_agent', default=DEFAULT_USERAGENT,
+        help="UA strings for HTTP Header 'User-Agent'", )
+    ap.add_argument(
+        '-l', '--languages', action="append",
+        help="Specify langs for HTTP Header 'Accept-Languages'", )
+    ap.add_argument(
+        '-w', '--width', default=800,
+        help="Specify window width to capture screen", )
+    ap.add_argument(
+        '-H', '--height', default=600,
+        help="Specify window height to capture screen", )
+    ap.add_argument(
+        '-p', '--prefix', default=DEFAULT_PREFIX,
+        help="Specify PNG file prefix (timestamp follows)", )
+    ap.add_argument(
+        '-s', '--scroll', default=False, action="store_true",
+        help="Whether scroll down to botton when capture a page or not", )
+    ap.add_argument('url', help="Specify request url")
+    args = ap.parse_args()
+
+    if not args.languages:
+        args.languages = ['ja']
+    main(args)
