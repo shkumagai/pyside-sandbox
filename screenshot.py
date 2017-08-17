@@ -83,6 +83,7 @@ class Browser(QWebView):
             self.setPage(page)
 
         self.use_smooth_scroll = args.with_smooth_scroll
+        self.scrollStarted = False
         self.initialize()
 
     def _private_browse(self):
@@ -100,9 +101,15 @@ class Browser(QWebView):
         self.timerDelay.timeout.connect(self.delay_action)
 
         self.loadFinished.connect(self.load_finished_slot)
+        self.loadProgress.connect(self.load_progress_slot)
 
         self._private_browse()
         self._hide_scroll_bars()
+
+    def load_progress_slot(self, progress):
+        """Callback function when content loading status updated.
+        """
+        print("Loading progress: {:d}%...".format(progress))
 
     def load_finished_slot(self, ok):
         """Callback function when content loading finished
@@ -121,12 +128,18 @@ class Browser(QWebView):
         frame = self.page().mainFrame()
         target_y = frame.scrollBarMaximum(Qt.Vertical)
         current_y = frame.scrollBarValue(Qt.Vertical)
+        print("target: {:d}, current: {:d}".format(target_y, current_y))
 
-        if self.use_smooth_scroll and target_y > current_y:
-            y = current_y + 50
-            frame.evaluateJavaScript("window.scrollTo(0, {:d});".format(y))
-            print("Scroll to y: {:,d}".format(y))
-            self.timerDelay.start()
+        if self.use_smooth_scroll:
+            y = current_y - 50 if self.scrollStarted else target_y
+            if y > 0:
+                frame.evaluateJavaScript("window.scrollTo(0, {:d});".format(y))
+                print("Scroll to y: {:,d}".format(y))
+                if not self.scrollStarted:
+                    self.scrollStarted = True
+                self.timerDelay.start()
+            else:
+                self.take_screenshot()
         else:
             self.take_screenshot()
 
