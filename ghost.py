@@ -1124,7 +1124,7 @@ class Session(object):
         self._alert = None
         return msg, self._release_last_resources()
 
-    def wati_for_page_loaded(self, timeout=None):
+    def wait_for_page_loaded(self, timeout=None):
         """Waits until page is loaded, assumed that a page as been required.
 
         :param timtout: An optional timeout.
