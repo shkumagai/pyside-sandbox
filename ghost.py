@@ -40,9 +40,9 @@ from PyQt5.QtNetwork import (
     QNetworkProxy,
     QNetworkRequest,
 )
+from PyQt5.QtWebKit import QWebSettings
 from PyQt5.QtWebKitWidgets import (
     QWebPage,
-    QWebSettings,
     QWebView,
 )
 from xvfbwrapper import Xvfb
