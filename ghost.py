@@ -829,6 +829,7 @@ class Session(object):
             self._confirm_expected = default_popup_response
 
         if wait:
+            print('waiting ... (in %d seconds)' % timeout)
             return self.wait_for_page_loaded(timeout=timeout)
 
     def scroll_to_anchor(self, anchor):
